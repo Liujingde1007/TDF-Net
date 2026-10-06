@@ -1,0 +1,181 @@
+"""Turn evaluation JSON into LaTeX tables, a markdown results summary, and a dump of every
+number that appears in the manuscript.
+
+Nothing in the paper is typed by hand: the tables and the result values quoted in the text all
+come from this script, which reads the JSON produced by ``eval.py``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RESULTS = os.path.join(ROOT, "results")
+
+METHOD_ORDER = ["LS-linear", "DFT-denoise", "OMP", "LMMSE", "ChannelNet", "CDRN+GRU", "TDF-Net"]
+
+
+def load(name: str) -> dict:
+    with open(os.path.join(RESULTS, name + ".json")) as f:
+        return json.load(f)
+
+
+def table_nmse(payload: dict, profile: str, velocity: float, methods: list[str]) -> str:
+    snrs = payload["snr_db"]
+    data = payload["nmse_all"][profile][str(velocity)] if str(velocity) in payload["nmse_all"][profile] \
+        else payload["nmse_all"][profile][velocity]
+    lines = []
+    lines.append(r"\begin{table}[t]" "\n" r"\centering")
+    lines.append(r"\caption{NMSE performance in the %s profile at $v=%g$~km/h.}"
+                 % (profile, velocity))
+    lines.append(r"\label{tab:nmse_%s_%g}" % (profile.replace("-", "").lower(), velocity))
+    lines.append(r"\begin{tabular}{l" + "c" * len(snrs) + "}")
+    lines.append(r"\hline")
+    lines.append("Estimator & " + " & ".join("$%g$" % s for s in snrs) + r" \\")
+    lines.append(r"\hline")
+    for m in methods:
+        vals = []
+        for s in snrs:
+            key = str(s) if str(s) in data else s
+            vals.append("%.2f" % data[key][m])
+        lines.append("%s & %s \\\\" % (m.replace("_", r"\_"), " & ".join(vals)))
+    lines.append(r"\hline")
+    lines.append(r"\end{tabular}")
+    lines.append(r"\end{table}")
+    return "\n".join(lines)
+
+
+def table_ber(payload: dict, velocity: float, methods: list[str], snr_sel=None) -> str:
+    snrs = payload["snr_db"]
+    data = payload["ber"][str(velocity)] if str(velocity) in payload["ber"] else payload["ber"][velocity]
+    if snr_sel:
+        snrs = [s for s in snrs if s in snr_sel]
+    lines = [r"\begin{table}[t]", r"\centering",
+             r"\caption{Post-equalisation BER (TDL-C, $v=%g$~km/h).}" % velocity,
+             r"\label{tab:ber_%g}" % velocity,
+             r"\begin{tabular}{l" + "c" * len(snrs) + "}", r"\hline",
+             "Estimator & " + " & ".join("$%g$" % s for s in snrs) + r" \\", r"\hline"]
+    for m in methods:
+        vals = []
+        for s in snrs:
+            key = str(s) if str(s) in data else s
+            v = data[key][m]
+            vals.append("%.1f" % (0.0 if v <= 0 else v))
+        lines.append("%s & %s \\\\" % (m.replace("_", r"\_"), " & ".join(vals)))
+    lines += [r"\hline", r"\end{tabular}", r"\end{table}"]
+    return "\n".join(lines)
+
+
+def table_complexity(payload: dict, methods: list[str]) -> str:
+    comp = payload["complexity"]
+    lines = [r"\begin{table}[t]", r"\centering",
+             r"\caption{Parameter count and CPU inference cost per slot.}",
+             r"\label{tab:complexity}",
+             r"\begin{tabular}{lrr}", r"\hline",
+             r"Estimator & Parameters & ms/slot \\", r"\hline"]
+    for m in methods:
+        if m not in comp:
+            continue
+        c = comp[m]
+        lines.append("%s & %s & %.2f \\\\" % (
+            m.replace("_", r"\_"),
+            ("%d" % c["params"]) if c["params"] else "--",
+            c["inference_ms_per_slot"]))
+    lines += [r"\hline", r"\end{tabular}", r"\end{table}"]
+    return "\n".join(lines)
+
+
+def summary_table(payload: dict, profile: str, methods: list[str]) -> str:
+    """Mean NMSE over the SNR set, per velocity."""
+    out = ["| Estimator | " + " | ".join("v=%g" % v for v in payload["velocities"]) + " |",
+           "|---" * (len(payload["velocities"]) + 1) + "|"]
+    for m in methods:
+        row = []
+        for v in payload["velocities"]:
+            d = payload["nmse_all"][profile][str(v)] if str(v) in payload["nmse_all"][profile] \
+                else payload["nmse_all"][profile][v]
+            vals = [d[str(s) if str(s) in d else s][m] for s in payload["snr_db"]
+                    if m in d[str(s) if str(s) in d else s]]
+            row.append("%.2f" % (sum(vals) / len(vals)) if vals else "n/a")
+        out.append("| %s | %s |" % (m, " | ".join(row)))
+    return "\n".join(out)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--in", dest="inp", default="eval_main")
+    ap.add_argument("--out-tex", default="tables.tex")
+    ap.add_argument("--out-md", default="RESULTS.md")
+    ap.add_argument("--methods", nargs="+", default=METHOD_ORDER)
+    args = ap.parse_args()
+
+    payload = load(args.inp)
+    methods = [m for m in args.methods if any(m in d for d in
+               [payload["nmse_all"][p][str(v)][str(s)]
+                for p in payload["profiles"] for v in payload["velocities"]
+                for s in payload["snr_db"]])]
+
+    tex = ["% Auto-generated by code/make_tables.py -- do not edit by hand.", ""]
+    for p in payload["profiles"]:
+        for v in payload["velocities"]:
+            tex.append(table_nmse(payload, p, v, methods))
+            tex.append("")
+    if "ber" in payload:
+        for v in payload["ber"]:
+            tex.append(table_ber(payload, float(v), methods))
+            tex.append("")
+    if "complexity" in payload:
+        tex.append(table_complexity(payload, methods))
+    with open(os.path.join(RESULTS, args.out_tex), "w", encoding="utf-8") as f:
+        f.write("\n".join(tex))
+
+    md = ["# Experiment results", "",
+          "Auto-generated from `results/%s.json`. Every number below comes directly from the" % args.inp,
+          "evaluation script.", ""]
+    md.append("## Trained models")
+    md.append("")
+    md.append("| Model | tag | params | best val NMSE (dB) | epoch |")
+    md.append("|---|---|---|---|---|")
+    for k, v in payload["meta"].items():
+        md.append("| %s | %s | %d | %.2f | %d |" % (k, v["tag"], v["params"], v["val_nmse_db"], v["epoch"]))
+    md.append("")
+    for p in payload["profiles"]:
+        md.append("## NMSE, %s profile (mean over %d realisations, dB)" % (p, payload["n_realizations"]))
+        md.append("")
+        md.append(summary_table(payload, p, methods))
+        md.append("")
+    if "ber" in payload:
+        md.append("## BER (TDL-C), at the highest evaluated SNR")
+        md.append("")
+        berv = sorted(float(k) for k in payload["ber"])
+        md.append("| Estimator | " + " | ".join("v=%g" % v for v in berv) + " |")
+        md.append("|---" * (len(berv) + 1) + "|")
+        for m in methods:
+            row = []
+            for v in berv:
+                d = payload["ber"][str(v)]
+                s = payload["snr_db"][-1]
+                val = d[str(s)][m] if m in d.get(str(s), {}) else float("nan")
+                row.append("%.2e" % val if val == val else "n/a")
+            md.append("| %s | %s |" % (m, " | ".join(row)))
+    if "complexity" in payload:
+        md.append("")
+        md.append("## Complexity")
+        md.append("")
+        md.append("| Estimator | params | ms/slot |")
+        md.append("|---|---|---|")
+        for m in methods:
+            if m in payload["complexity"]:
+                c = payload["complexity"][m]
+                md.append("| %s | %s | %.3f |" % (m, c["params"] or "--", c["inference_ms_per_slot"]))
+    with open(os.path.join(RESULTS, args.out_md), "w", encoding="utf-8") as f:
+        f.write("\n".join(md) + "\n")
+
+    print("wrote %s and %s" % (os.path.join(RESULTS, args.out_tex),
+                               os.path.join(RESULTS, args.out_md)))
+
+
+if __name__ == "__main__":
+    main()
