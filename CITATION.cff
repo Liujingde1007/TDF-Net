@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this code or these results, please cite the paper below."
+title: "The Observation Model Dominates the Architecture in Learned OFDM Channel Estimation"
+authors:
+  - family-names: "Liu"
+    given-names: "Jingde"
+    affiliation: "School of Information Science and Engineering, Shenyang University of Technology, Shenyang, China"
+    orcid: "https://orcid.org/0009-0007-2039-2450"
+contact:
+  - family-names: "Liu"
+    given-names: "Jingde"
+    email: "18526813497@163.com"
+abstract: >-
+  A controlled ablation study of learned channel estimation for high-mobility OFDM links,
+  isolating the effect of the observation model, a fixed delay-domain prior, and cross-slot
+  temporal aggregation on 3GPP TR 38.901 TDL channels.
+keywords:
+  - OFDM
+  - channel estimation
+  - deep learning
+  - delay-domain sparsity
+  - ablation study
+license: MIT
+version: "1.0"
+date-released: "2026-10-06"

@@ -1,0 +1,7 @@
+# environment that produced the published results (CPU only)
+python==3.11.9
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.11.2
+torch==2.14.1+cpu
+pypandoc-binary==1.17   # only needed to rebuild the .docx
