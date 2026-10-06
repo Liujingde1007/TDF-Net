@@ -1,0 +1,10 @@
+{
+  "derotated_nmse_db": -19.19752600766701,
+  "raw_nmse_db": 0.003552689938193838,
+  "velocity_kmh": 10.0,
+  "snr_db": 15.0,
+  "M": 4,
+  "n_train": 2000,
+  "params": 363762,
+  "note": "identical architecture/budget/schedule; only the input representation differs"
+}

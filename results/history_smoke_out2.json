@@ -1,0 +1,56 @@
+{
+  "tag": "smoke_out2",
+  "model": "tdfnet",
+  "seq_len": 4,
+  "n_params": 774135,
+  "epochs": [
+    1,
+    2,
+    3
+  ],
+  "train_loss": [
+    0.844923754533132,
+    0.8205045859018961,
+    0.7674039304256439
+  ],
+  "val_loss": [
+    0.8406809806823731,
+    0.8000255386034648,
+    0.7640729665756225
+  ],
+  "lr": [
+    0.00151,
+    0.0005300000000000002,
+    4e-05
+  ],
+  "config": {
+    "n_train": 4000,
+    "n_val": 600,
+    "batch_size": 32,
+    "lr0": 0.002,
+    "n_taps": 4,
+    "base_ch": 32,
+    "use_delay": true,
+    "rnn": "gru",
+    "seed": 20240517,
+    "seq_len": 4,
+    "velocity_group": [
+      20.0,
+      140.0
+    ],
+    "snr_train_db": [
+      -5.0,
+      25.0
+    ],
+    "n_test": 600,
+    "epochs": 45,
+    "lr": 0.002,
+    "weight_decay": 0.0001,
+    "n_delay_taps": 16,
+    "grad_clip": 1.0,
+    "profile": "TDL-C",
+    "delay_spread_ns": 100.0
+  },
+  "best_val_loss": 0.7640729665756225,
+  "best_val_nmse_db": -1.1686516568084302
+}
